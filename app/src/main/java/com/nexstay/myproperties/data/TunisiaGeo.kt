@@ -65,18 +65,29 @@ fun List<Governorate>.governorateIndexOf(latitude: Double, longitude: Double): I
     return best
 }
 
-/** Charge les contours des gouvernorats depuis les assets (format compact généré depuis geoBoundaries). */
+/** Charge les contours des gouvernorats et communes depuis les assets (format compact généré depuis geoBoundaries). */
 object TunisiaGeo {
 
     @Volatile
     private var cache: List<Governorate>? = null
 
     @Volatile
+    private var communesCache: List<Governorate>? = null
+
+    @Volatile
     private var cachedBounds: GeoBounds? = null
 
     fun load(context: Context): List<Governorate> =
         cache ?: synchronized(this) {
-            cache ?: parse(context).also { cache = it }
+            cache ?: parse(context, "tunisia_governorates.txt", updateBounds = true)
+                .also { cache = it }
+        }
+
+    /** Délégations/communes (niveau ADM2), noms en français. */
+    fun loadCommunes(context: Context): List<Governorate> =
+        communesCache ?: synchronized(this) {
+            communesCache ?: parse(context, "tunisia_communes.txt", updateBounds = false)
+                .also { communesCache = it }
         }
 
     fun bounds(context: Context): GeoBounds {
@@ -84,13 +95,17 @@ object TunisiaGeo {
         return cachedBounds!!
     }
 
-    private fun parse(context: Context): List<Governorate> {
+    private fun parse(
+        context: Context,
+        fileName: String,
+        updateBounds: Boolean
+    ): List<Governorate> {
         var minLon = Float.MAX_VALUE
         var maxLon = -Float.MAX_VALUE
         var minLat = Float.MAX_VALUE
         var maxLat = -Float.MAX_VALUE
 
-        val governorates = context.assets.open("tunisia_governorates.txt")
+        val regions = context.assets.open(fileName)
             .bufferedReader()
             .readLines()
             .filter { it.isNotBlank() }
@@ -132,7 +147,9 @@ object TunisiaGeo {
                 )
             }
 
-        cachedBounds = GeoBounds(minLon, maxLon, minLat, maxLat)
-        return governorates
+        if (updateBounds) {
+            cachedBounds = GeoBounds(minLon, maxLon, minLat, maxLat)
+        }
+        return regions
     }
 }

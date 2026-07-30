@@ -127,6 +127,13 @@ fun TunisiaMap(
     val density = LocalDensity.current
     val governorates = remember { TunisiaGeo.load(context) }
     val bounds = remember { TunisiaGeo.bounds(context) }
+    val communes = remember { TunisiaGeo.loadCommunes(context) }
+    // Gouvernorat d'appartenance de chaque commune (via son centroïde).
+    val communeGovernorate = remember {
+        communes.map {
+            governorates.governorateIndexOf(it.centroidLat.toDouble(), it.centroidLon.toDouble())
+        }
+    }
 
     val occupiedIndices = remember(markers) {
         markers.map { governorates.governorateIndexOf(it.latitude, it.longitude) }
@@ -144,6 +151,11 @@ fun TunisiaMap(
         if (showcase) ShowcaseBackground
         else MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f)
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val communeBorderColor =
+        if (showcase) Color(0xFF484848)
+        else MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    val communeLabelColor =
+        if (showcase) Color(0xFF9E9E9E) else MaterialTheme.colorScheme.onSurfaceVariant
     val bubbleColor = if (showcase) NexstayCoral else MaterialTheme.colorScheme.primary
     val bubbleTextColor = if (showcase) ShowcaseText else MaterialTheme.colorScheme.onPrimary
 
@@ -224,10 +236,10 @@ fun TunisiaMap(
             }
         }
 
-        val paths = remember(projection) {
-            governorates.map { gov ->
+        fun buildPaths(regions: List<com.nexstay.myproperties.data.Governorate>): List<Path> =
+            regions.map { region ->
                 Path().apply {
-                    gov.rings.forEach { ring ->
+                    region.rings.forEach { ring ->
                         for (i in 0 until ring.size / 2) {
                             val point = projection.world(
                                 ring[i * 2 + 1].toDouble(),
@@ -239,7 +251,9 @@ fun TunisiaMap(
                     }
                 }
             }
-        }
+
+        val paths = remember(projection) { buildPaths(governorates) }
+        val communePaths = remember(projection) { buildPaths(communes) }
 
         val labelPaint = remember(labelColor) {
             android.graphics.Paint().apply {
@@ -266,7 +280,17 @@ fun TunisiaMap(
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
         }
+        val communeLabelPaint = remember(communeLabelColor) {
+            android.graphics.Paint().apply {
+                isAntiAlias = true
+                color = communeLabelColor.toArgb()
+                textAlign = android.graphics.Paint.Align.CENTER
+                textSize = with(density) { 9.sp.toPx() }
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            }
+        }
         val labelMinHeightPx = with(density) { 60.dp.toPx() }
+        val communeLabelMinHeightPx = with(density) { 42.dp.toPx() }
 
         var mapModifier: Modifier = Modifier.fillMaxSize()
         if (interactive) {
@@ -301,6 +325,11 @@ fun TunisiaMap(
         }
 
         Canvas(modifier = mapModifier) {
+            val showCommunes = showcase || scale >= 2.2f
+            fun communeVisible(index: Int): Boolean =
+                !showcase || occupiedIndices.isEmpty() ||
+                    communeGovernorate[index] in occupiedIndices
+
             drawRect(seaColor)
             withTransform({
                 translate(offset.x, offset.y)
@@ -310,6 +339,22 @@ fun TunisiaMap(
                 paths.forEachIndexed { index, path ->
                     if (index in visibleIndices) {
                         drawPath(path, landColor)
+                    }
+                }
+                if (showCommunes) {
+                    val communeStroke = 0.7.dp.toPx() / scale
+                    communePaths.forEachIndexed { index, path ->
+                        if (communeVisible(index)) {
+                            drawPath(
+                                path,
+                                communeBorderColor,
+                                style = Stroke(width = communeStroke)
+                            )
+                        }
+                    }
+                }
+                paths.forEachIndexed { index, path ->
+                    if (index in visibleIndices) {
                         drawPath(path, borderColor, style = Stroke(width = strokeWidth))
                     }
                 }
@@ -359,6 +404,24 @@ fun TunisiaMap(
             }
 
             drawIntoCanvas { canvas ->
+                if (showCommunes) {
+                    communes.forEachIndexed { index, commune ->
+                        val heightOnScreen =
+                            commune.latSpan * projection.pixelsPerDegreeLat * scale
+                        if (communeVisible(index) && heightOnScreen > communeLabelMinHeightPx) {
+                            val position = screenOf(
+                                commune.centroidLat.toDouble(),
+                                commune.centroidLon.toDouble()
+                            )
+                            canvas.nativeCanvas.drawText(
+                                commune.name,
+                                position.x,
+                                position.y,
+                                communeLabelPaint
+                            )
+                        }
+                    }
+                }
                 if (!showcase) {
                     governorates.forEach { gov ->
                         val heightOnScreen =

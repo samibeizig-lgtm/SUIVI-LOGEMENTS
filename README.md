@@ -28,7 +28,7 @@ Application Android de suivi des logements gérés par **Nexstay**. Design minim
 
 - Kotlin 2.0 · Jetpack Compose (Material 3) · Navigation Compose
 - Room (persistance locale) · KSP
-- Carte des gouvernorats dessinée en Compose Canvas à partir de contours embarqués (source : geoBoundaries, simplifiés à ~2 000 points) — aucune dépendance cartographique, aucune permission
+- Carte des gouvernorats (24) et des communes/délégations (264, noms en français) dessinée en Compose Canvas à partir de contours embarqués (source : geoBoundaries, simplifiés) — aucune dépendance cartographique, aucune permission
 - minSdk 26 (Android 8.0) · targetSdk 35
 
 ## Compiler
