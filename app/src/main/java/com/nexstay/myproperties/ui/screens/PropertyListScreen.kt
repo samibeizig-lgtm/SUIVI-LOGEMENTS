@@ -1,5 +1,8 @@
 package com.nexstay.myproperties.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,15 +18,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.HomeWork
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -33,6 +40,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,9 +59,21 @@ fun PropertyListScreen(
     properties: List<Property>,
     onAddClick: () -> Unit,
     onMapClick: () -> Unit,
-    onPropertyClick: (Property) -> Unit
+    onPropertyClick: (Property) -> Unit,
+    onExportBackup: (Uri) -> Unit,
+    onImportBackup: (Uri) -> Unit
 ) {
     var query by remember { mutableStateOf("") }
+    var menuOpen by remember { mutableStateOf(false) }
+    var pendingImport by remember { mutableStateOf<Uri?>(null) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri -> uri?.let(onExportBackup) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { pendingImport = it } }
     val filtered = remember(properties, query) {
         if (query.isBlank()) properties
         else properties.filter {
@@ -85,6 +105,30 @@ fun PropertyListScreen(
                         Icon(
                             imageVector = Icons.Outlined.Map,
                             contentDescription = "Carte des logements"
+                        )
+                    }
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = "Menu"
+                        )
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Exporter une sauvegarde") },
+                            onClick = {
+                                menuOpen = false
+                                exportLauncher.launch("my-properties-sauvegarde.zip")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Importer une sauvegarde") },
+                            onClick = {
+                                menuOpen = false
+                                importLauncher.launch(
+                                    arrayOf("application/zip", "application/octet-stream")
+                                )
+                            }
                         )
                     }
                 },
@@ -140,6 +184,28 @@ fun PropertyListScreen(
                 }
             }
         }
+    }
+
+    pendingImport?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingImport = null },
+            title = { Text("Importer la sauvegarde ?") },
+            text = {
+                Text(
+                    "Les logements, photos et vidéos actuels seront remplacés " +
+                        "par le contenu de la sauvegarde."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingImport = null
+                    onImportBackup(uri)
+                }) { Text("Importer") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImport = null }) { Text("Annuler") }
+            }
+        )
     }
 }
 

@@ -1,12 +1,14 @@
 package com.nexstay.myproperties
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -36,6 +38,11 @@ class MainActivity : ComponentActivity() {
 fun MyPropertiesNavHost(viewModel: PropertyViewModel = viewModel()) {
     val navController = rememberNavController()
     val properties by viewModel.properties.collectAsState()
+    val context = LocalContext.current
+
+    fun toast(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
 
     NavHost(navController = navController, startDestination = "list") {
 
@@ -44,7 +51,17 @@ fun MyPropertiesNavHost(viewModel: PropertyViewModel = viewModel()) {
                 properties = properties,
                 onAddClick = { navController.navigate("form") },
                 onMapClick = { navController.navigate("map") },
-                onPropertyClick = { navController.navigate("detail/${it.id}") }
+                onPropertyClick = { navController.navigate("detail/${it.id}") },
+                onExportBackup = { uri ->
+                    viewModel.exportBackup(uri) { ok ->
+                        toast(if (ok) "Sauvegarde exportée ✓" else "Échec de l'export")
+                    }
+                },
+                onImportBackup = { uri ->
+                    viewModel.importBackup(uri) { ok ->
+                        toast(if (ok) "Sauvegarde importée ✓" else "Échec de l'import : fichier invalide")
+                    }
+                }
             )
         }
 
@@ -62,9 +79,14 @@ fun MyPropertiesNavHost(viewModel: PropertyViewModel = viewModel()) {
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getLong("id") ?: return@composable
             val property by viewModel.property(id).collectAsState(initial = null)
+            val media by viewModel.mediaFor(id).collectAsState(initial = emptyList())
             property?.let { current ->
                 PropertyDetailScreen(
                     property = current,
+                    media = media,
+                    mediaFileFor = { viewModel.mediaFile(it) },
+                    onAddMedia = { uris -> viewModel.addMedia(id, uris) },
+                    onDeleteMedia = { viewModel.deleteMedia(it) },
                     onBack = { navController.popBackStack() },
                     onEdit = { navController.navigate("form?id=$id") },
                     onDelete = {

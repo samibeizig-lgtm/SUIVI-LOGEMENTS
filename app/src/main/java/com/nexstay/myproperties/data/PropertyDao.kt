@@ -20,6 +20,12 @@ interface PropertyDao {
     @Query("SELECT * FROM properties WHERE id = :id")
     suspend fun getById(id: Long): Property?
 
+    @Query("SELECT * FROM properties")
+    suspend fun getAll(): List<Property>
+
+    @Query("DELETE FROM properties")
+    suspend fun deleteAll()
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(property: Property): Long
 

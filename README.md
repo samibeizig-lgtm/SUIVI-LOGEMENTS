@@ -8,6 +8,8 @@ Application Android de suivi des logements gérés par **Nexstay**. Design minim
 - **Création / modification / suppression** d'un logement (suppression avec confirmation).
 - **Carte vitrine façon affiche Nexstay** — fond sombre, seuls les gouvernorats contenant des logements sont dessinés, cadrage automatique sur la zone couverte, épingles corail avec le nom du logement affiché à côté ; un appui sur l'épingle ouvre une bulle, puis la fiche. 100 % hors-ligne, dessinée par l'application (aucune connexion ni clé API).
 - **Placement manuel** : la position du logement se définit en touchant la carte (rubrique Localisation du formulaire) — pas de géocodage approximatif. Une mini-carte de situation est intégrée à la fiche de chaque logement.
+- **Photos & vidéos par logement** : ajout depuis la galerie (copiées dans l'app), visionnage, partage individuel ou groupé, suppression.
+- **Sauvegarde / restauration** : export d'un fichier .zip (données + médias) depuis le menu ⋮ de la liste, et import pour tout récupérer sur un autre téléphone (remplace les données actuelles, avec confirmation).
 - **Stockage local** (Room / SQLite) : les données restent sur le téléphone.
 
 ## Fiche logement — rubriques
