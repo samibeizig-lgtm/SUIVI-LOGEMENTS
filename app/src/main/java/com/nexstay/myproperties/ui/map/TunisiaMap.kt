@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -61,6 +62,15 @@ data class MapMarker(
     val latitude: Double,
     val longitude: Double,
     val label: String
+)
+
+/** Position calculée d'une épingle vitrine et de son étiquette (anti-chevauchement). */
+private class PinPlacement(
+    val marker: MapMarker,
+    val tip: Offset,
+    val circleY: Float,
+    val toRight: Boolean,
+    val labelY: Float
 )
 
 /** Centrage initial de la carte sur un point donné. */
@@ -360,12 +370,35 @@ fun TunisiaMap(
                 }
             }
 
+            // Répartition verticale des étiquettes : quand des logements sont
+            // proches, les noms s'écartent pour rester lisibles, chacun relié
+            // à son épingle par un trait en tirets.
+            val pinRadius = 8.dp.toPx()
+            val labelGapX = 26.dp.toPx()
+            val minLabelSpacing = 22.dp.toPx()
+            val placements: List<PinPlacement> = if (showcase) {
+                buildList {
+                    markers.map { it to screenOf(it.latitude, it.longitude) }
+                        .groupBy { it.second.x < widthPx / 2f }
+                        .forEach { (toRight, group) ->
+                            var previousY = -Float.MAX_VALUE
+                            group.sortedBy { it.second.y }.forEach { (marker, tip) ->
+                                val circleY = tip.y - pinRadius * 1.8f
+                                val labelY = maxOf(circleY, previousY + minLabelSpacing)
+                                previousY = labelY
+                                add(PinPlacement(marker, tip, circleY, toRight, labelY))
+                            }
+                        }
+                }
+            } else {
+                emptyList()
+            }
+
             if (showcase) {
                 // Épingles corail façon affiche Nexstay.
-                val pinRadius = 8.dp.toPx()
-                markers.forEach { marker ->
-                    val tip = screenOf(marker.latitude, marker.longitude)
-                    val circleCenter = Offset(tip.x, tip.y - pinRadius * 1.8f)
+                placements.forEach { placement ->
+                    val tip = placement.tip
+                    val circleCenter = Offset(tip.x, placement.circleY)
                     val pin = Path().apply {
                         moveTo(tip.x, tip.y)
                         arcTo(
@@ -388,17 +421,17 @@ fun TunisiaMap(
                         center = circleCenter
                     )
 
-                    // Trait de rappel vers le nom, côté opposé au bord de l'écran.
-                    val toRight = tip.x < widthPx / 2f
-                    val lineStartX = if (toRight) tip.x + pinRadius + 4.dp.toPx()
-                    else tip.x - pinRadius - 4.dp.toPx()
-                    val lineEndX = if (toRight) lineStartX + 14.dp.toPx()
-                    else lineStartX - 14.dp.toPx()
+                    // Trait en tirets de l'épingle vers l'étiquette.
+                    val startX = if (placement.toRight) tip.x + pinRadius + 3.dp.toPx()
+                    else tip.x - pinRadius - 3.dp.toPx()
+                    val endX = if (placement.toRight) tip.x + pinRadius + labelGapX - 5.dp.toPx()
+                    else tip.x - pinRadius - labelGapX + 5.dp.toPx()
                     drawLine(
                         color = NexstayCoral,
-                        start = Offset(lineStartX, circleCenter.y),
-                        end = Offset(lineEndX, circleCenter.y),
-                        strokeWidth = 1.5.dp.toPx()
+                        start = Offset(startX, circleCenter.y),
+                        end = Offset(endX, placement.labelY),
+                        strokeWidth = 1.5.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(7f, 6f))
                     )
                 }
             }
@@ -444,20 +477,19 @@ fun TunisiaMap(
                         canvas.nativeCanvas.drawText("🏠", position.x, position.y, emojiPaint)
                     }
                 } else {
-                    val pinRadius = with(density) { 8.dp.toPx() }
-                    val gap = with(density) { 22.dp.toPx() }
-                    markers.forEach { marker ->
-                        val tip = screenOf(marker.latitude, marker.longitude)
-                        val labelY = tip.y - pinRadius * 1.8f + pinLabelPaint.textSize * 0.35f
-                        val toRight = tip.x < widthPx / 2f
+                    placements.forEach { placement ->
+                        val textY = placement.labelY + pinLabelPaint.textSize * 0.35f
                         pinLabelPaint.textAlign =
-                            if (toRight) android.graphics.Paint.Align.LEFT
+                            if (placement.toRight) android.graphics.Paint.Align.LEFT
                             else android.graphics.Paint.Align.RIGHT
-                        val textX = if (toRight) tip.x + pinRadius + gap else tip.x - pinRadius - gap
+                        val textX = if (placement.toRight)
+                            placement.tip.x + pinRadius + labelGapX
+                        else
+                            placement.tip.x - pinRadius - labelGapX
                         canvas.nativeCanvas.drawText(
-                            marker.label.ifBlank { "Sans nom" },
+                            placement.marker.label.ifBlank { "Sans nom" },
                             textX,
-                            labelY,
+                            textY,
                             pinLabelPaint
                         )
                     }
