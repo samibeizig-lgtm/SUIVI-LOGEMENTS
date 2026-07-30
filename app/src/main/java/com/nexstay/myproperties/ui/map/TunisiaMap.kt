@@ -297,7 +297,7 @@ fun TunisiaMap(
             mapModifier = mapModifier
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, pan, zoom, _ ->
-                        val newScale = (scale * zoom).coerceIn(1f, 16f)
+                        val newScale = (scale * zoom).coerceIn(1f, 80f)
                         val zoomed = centroid - (centroid - offset) * (newScale / scale)
                         offset = clampOffset(zoomed + pan, newScale)
                         scale = newScale
