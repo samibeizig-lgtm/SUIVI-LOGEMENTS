@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -344,13 +345,16 @@ fun PropertyFormScreen(
         var pickedLongitude by remember { mutableStateOf(draft.longitude) }
         Dialog(
             onDismissRequest = { showMapPicker = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
         ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
             ) {
-                Column {
+                Column(modifier = Modifier.systemBarsPadding()) {
                     Text(
                         text = "Placer le logement",
                         style = MaterialTheme.typography.titleLarge,
@@ -379,7 +383,7 @@ fun PropertyFormScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp)
+                            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp)
                     ) {
                         OutlinedButton(
                             onClick = { showMapPicker = false },
