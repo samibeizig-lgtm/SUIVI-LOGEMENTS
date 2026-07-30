@@ -6,7 +6,8 @@ Application Android de suivi des logements gérés par **Nexstay**. Design minim
 
 - **Liste des logements** avec recherche (nom, adresse, propriétaire) et indicateur de contrat signé.
 - **Création / modification / suppression** d'un logement (suppression avec confirmation).
-- **Carte interactive** (OpenStreetMap, sans clé API) : chaque logement est géocodé automatiquement à partir de son adresse et affiché par un marqueur ; un appui sur le marqueur puis sur sa bulle ouvre la fiche. Bouton « Ouvrir dans Maps » sur la fiche pour lancer l'itinéraire.
+- **Carte interactive** (OpenStreetMap, sans clé API) : chaque logement est géocodé automatiquement à partir de son adresse et affiché par un marqueur ; un appui sur le marqueur puis sur sa bulle ouvre la fiche. Une mini-carte est intégrée à la fiche de chaque logement.
+- **Carte hors-ligne** : les fonds de carte sont conservés en cache (jusqu'à un an), et le bouton de téléchargement de l'écran carte enregistre à l'avance les tuiles (zooms 13 à 17) autour de chaque logement — la carte et les marqueurs restent consultables sans connexion.
 - **Stockage local** (Room / SQLite) : les données restent sur le téléphone.
 
 ## Fiche logement — rubriques

@@ -1,7 +1,5 @@
 package com.nexstay.myproperties.ui.screens
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -23,7 +21,6 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.HomeWork
 import androidx.compose.material.icons.outlined.Key
-import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Wifi
@@ -33,25 +30,32 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.nexstay.myproperties.data.KeyHandover
 import com.nexstay.myproperties.data.Property
 import com.nexstay.myproperties.ui.components.DetailRow
 import com.nexstay.myproperties.ui.components.SectionCard
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.CustomZoomButtonsController
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -64,7 +68,6 @@ fun PropertyDetailScreen(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE) }
 
@@ -118,26 +121,12 @@ fun PropertyDetailScreen(
                     DetailRow("Surface", property.surface.takeIf { it.isNotBlank() }?.let { "$it m²" })
                     DetailRow("Voyageurs max", property.maxGuests, showDivider = false)
                 }
-                if (property.address.isNotBlank()) {
-                    OutlinedButton(
-                        onClick = {
-                            val uri = if (property.latitude != null && property.longitude != null) {
-                                Uri.parse("geo:${property.latitude},${property.longitude}?q=${Uri.encode(property.address)}")
-                            } else {
-                                Uri.parse("geo:0,0?q=${Uri.encode(property.address)}")
-                            }
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-                        },
-                        shape = MaterialTheme.shapes.small,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Map,
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                        Text("Ouvrir dans Maps")
-                    }
+                if (property.latitude != null && property.longitude != null) {
+                    MiniMap(
+                        latitude = property.latitude,
+                        longitude = property.longitude,
+                        name = property.name
+                    )
                 }
             }
 
@@ -256,4 +245,45 @@ fun PropertyDetailScreen(
             }
         )
     }
+}
+
+/** Mini-carte non interactive montrant l'emplacement du logement (tuiles en cache = visible hors-ligne). */
+@Composable
+private fun MiniMap(latitude: Double, longitude: Double, name: String) {
+    val context = LocalContext.current
+    val mapView = remember {
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(false)
+            zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
+            setOnTouchListener { _, _ -> true }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        mapView.onResume()
+        onDispose { mapView.onPause() }
+    }
+
+    AndroidView(
+        factory = { mapView },
+        update = { map ->
+            map.controller.setZoom(15.5)
+            map.controller.setCenter(GeoPoint(latitude, longitude))
+            map.overlays.clear()
+            map.overlays.add(
+                Marker(map).apply {
+                    position = GeoPoint(latitude, longitude)
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                    title = name
+                    setInfoWindow(null)
+                }
+            )
+            map.invalidate()
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .clip(MaterialTheme.shapes.medium)
+    )
 }
