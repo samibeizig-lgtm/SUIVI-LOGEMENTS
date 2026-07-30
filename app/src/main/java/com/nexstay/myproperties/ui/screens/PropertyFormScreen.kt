@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.HomeWork
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Button
@@ -33,9 +34,11 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -49,6 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.nexstay.myproperties.data.ALL_EQUIPMENTS
 import com.nexstay.myproperties.data.KeyHandover
 import com.nexstay.myproperties.data.Property
@@ -58,6 +63,7 @@ import com.nexstay.myproperties.ui.components.AppDropdown
 import com.nexstay.myproperties.ui.components.AppTextField
 import com.nexstay.myproperties.ui.components.SectionCard
 import com.nexstay.myproperties.ui.components.SwitchRow
+import com.nexstay.myproperties.ui.map.TunisiaMap
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -72,6 +78,7 @@ fun PropertyFormScreen(
     val editing = initial != null
     var draft by remember(initial) { mutableStateOf(initial ?: Property()) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showMapPicker by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE) }
     val canSave = draft.name.isNotBlank()
 
@@ -131,6 +138,35 @@ fun PropertyFormScreen(
                         draft.maxGuests, { draft = draft.copy(maxGuests = it) }, "Voyageurs max",
                         modifier = Modifier.weight(1f), keyboardType = KeyboardType.Number
                     )
+                }
+            }
+
+            // ── Localisation ───────────────────────────────────────────────
+            SectionCard(title = "Localisation", icon = Icons.Outlined.Place) {
+                Text(
+                    text = if (draft.latitude != null)
+                        "Position définie sur la carte ✓"
+                    else
+                        "Aucune position. Placez le logement sur la carte pour le voir avec les autres.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (draft.latitude != null) MaterialTheme.colorScheme.tertiary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(
+                        onClick = { showMapPicker = true },
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (draft.latitude != null) "Modifier la position" else "Placer sur la carte")
+                    }
+                    if (draft.latitude != null) {
+                        TextButton(onClick = {
+                            draft = draft.copy(latitude = null, longitude = null)
+                        }) {
+                            Text("Retirer", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
                 }
             }
 
@@ -299,6 +335,71 @@ fun PropertyFormScreen(
                     .padding(bottom = 32.dp)
             ) {
                 Text(if (editing) "Enregistrer les modifications" else "Créer le logement")
+            }
+        }
+    }
+
+    if (showMapPicker) {
+        var pickedLatitude by remember { mutableStateOf(draft.latitude) }
+        var pickedLongitude by remember { mutableStateOf(draft.longitude) }
+        Dialog(
+            onDismissRequest = { showMapPicker = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Column {
+                    Text(
+                        text = "Placer le logement",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(start = 20.dp, top = 20.dp, end = 20.dp)
+                    )
+                    Text(
+                        text = "Touchez la carte pour positionner le logement 📍. Pincez pour zoomer.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                    )
+                    TunisiaMap(
+                        markers = emptyList(),
+                        placementPosition = pickedLatitude?.let { lat ->
+                            pickedLongitude?.let { lon -> lat to lon }
+                        },
+                        onPlace = { latitude, longitude ->
+                            pickedLatitude = latitude
+                            pickedLongitude = longitude
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showMapPicker = false },
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Annuler") }
+                        Button(
+                            onClick = {
+                                draft = draft.copy(
+                                    latitude = pickedLatitude,
+                                    longitude = pickedLongitude
+                                )
+                                showMapPicker = false
+                            },
+                            enabled = pickedLatitude != null,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Valider") }
+                    }
+                }
             }
         }
     }

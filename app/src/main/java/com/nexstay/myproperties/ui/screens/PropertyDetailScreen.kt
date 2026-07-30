@@ -36,26 +36,21 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.nexstay.myproperties.data.KeyHandover
 import com.nexstay.myproperties.data.Property
 import com.nexstay.myproperties.ui.components.DetailRow
 import com.nexstay.myproperties.ui.components.SectionCard
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.CustomZoomButtonsController
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
+import com.nexstay.myproperties.ui.map.MapFocus
+import com.nexstay.myproperties.ui.map.MapMarker
+import com.nexstay.myproperties.ui.map.TunisiaMap
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -122,10 +117,21 @@ fun PropertyDetailScreen(
                     DetailRow("Voyageurs max", property.maxGuests, showDivider = false)
                 }
                 if (property.latitude != null && property.longitude != null) {
-                    MiniMap(
-                        latitude = property.latitude,
-                        longitude = property.longitude,
-                        name = property.name
+                    TunisiaMap(
+                        markers = listOf(
+                            MapMarker(
+                                id = property.id,
+                                latitude = property.latitude,
+                                longitude = property.longitude,
+                                label = property.name
+                            )
+                        ),
+                        interactive = false,
+                        focus = MapFocus(property.latitude, property.longitude, zoom = 4.5f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(MaterialTheme.shapes.medium)
                     )
                 }
             }
@@ -245,45 +251,4 @@ fun PropertyDetailScreen(
             }
         )
     }
-}
-
-/** Mini-carte non interactive montrant l'emplacement du logement (tuiles en cache = visible hors-ligne). */
-@Composable
-private fun MiniMap(latitude: Double, longitude: Double, name: String) {
-    val context = LocalContext.current
-    val mapView = remember {
-        MapView(context).apply {
-            setTileSource(TileSourceFactory.MAPNIK)
-            setMultiTouchControls(false)
-            zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
-            setOnTouchListener { _, _ -> true }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        mapView.onResume()
-        onDispose { mapView.onPause() }
-    }
-
-    AndroidView(
-        factory = { mapView },
-        update = { map ->
-            map.controller.setZoom(15.5)
-            map.controller.setCenter(GeoPoint(latitude, longitude))
-            map.overlays.clear()
-            map.overlays.add(
-                Marker(map).apply {
-                    position = GeoPoint(latitude, longitude)
-                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    title = name
-                    setInfoWindow(null)
-                }
-            )
-            map.invalidate()
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(180.dp)
-            .clip(MaterialTheme.shapes.medium)
-    )
 }

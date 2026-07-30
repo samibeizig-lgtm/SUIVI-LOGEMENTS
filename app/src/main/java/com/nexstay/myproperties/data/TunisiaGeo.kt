@@ -1,0 +1,94 @@
+package com.nexstay.myproperties.data
+
+import android.content.Context
+
+/**
+ * Contour d'un gouvernorat tunisien.
+ * Chaque anneau est un tableau plat [lon0, lat0, lon1, lat1, …].
+ */
+class Governorate(
+    val name: String,
+    val rings: List<FloatArray>,
+    val centroidLon: Float,
+    val centroidLat: Float,
+    val latSpan: Float
+)
+
+class GeoBounds(
+    val minLon: Float,
+    val maxLon: Float,
+    val minLat: Float,
+    val maxLat: Float
+)
+
+/** Charge les contours des gouvernorats depuis les assets (format compact généré depuis geoBoundaries). */
+object TunisiaGeo {
+
+    @Volatile
+    private var cache: List<Governorate>? = null
+
+    @Volatile
+    private var cachedBounds: GeoBounds? = null
+
+    fun load(context: Context): List<Governorate> =
+        cache ?: synchronized(this) {
+            cache ?: parse(context).also { cache = it }
+        }
+
+    fun bounds(context: Context): GeoBounds {
+        load(context)
+        return cachedBounds!!
+    }
+
+    private fun parse(context: Context): List<Governorate> {
+        var minLon = Float.MAX_VALUE
+        var maxLon = -Float.MAX_VALUE
+        var minLat = Float.MAX_VALUE
+        var maxLat = -Float.MAX_VALUE
+
+        val governorates = context.assets.open("tunisia_governorates.txt")
+            .bufferedReader()
+            .readLines()
+            .filter { it.isNotBlank() }
+            .map { line ->
+                val parts = line.split('|')
+                val name = parts[0]
+                var sumLon = 0f
+                var sumLat = 0f
+                var count = 0
+                var govMinLat = Float.MAX_VALUE
+                var govMaxLat = -Float.MAX_VALUE
+                val rings = parts.drop(1).map { ring ->
+                    val points = ring.split(';')
+                    val array = FloatArray(points.size * 2)
+                    points.forEachIndexed { i, point ->
+                        val comma = point.indexOf(',')
+                        val lon = point.substring(0, comma).toFloat()
+                        val lat = point.substring(comma + 1).toFloat()
+                        array[i * 2] = lon
+                        array[i * 2 + 1] = lat
+                        sumLon += lon
+                        sumLat += lat
+                        count++
+                        if (lon < minLon) minLon = lon
+                        if (lon > maxLon) maxLon = lon
+                        if (lat < minLat) minLat = lat
+                        if (lat > maxLat) maxLat = lat
+                        if (lat < govMinLat) govMinLat = lat
+                        if (lat > govMaxLat) govMaxLat = lat
+                    }
+                    array
+                }
+                Governorate(
+                    name = name,
+                    rings = rings,
+                    centroidLon = sumLon / count,
+                    centroidLat = sumLat / count,
+                    latSpan = govMaxLat - govMinLat
+                )
+            }
+
+        cachedBounds = GeoBounds(minLon, maxLon, minLat, maxLat)
+        return governorates
+    }
+}
