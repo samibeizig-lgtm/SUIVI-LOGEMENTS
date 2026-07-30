@@ -1,6 +1,9 @@
 package com.nexstay.myproperties.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -51,10 +54,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.nexstay.myproperties.data.ALL_EQUIPMENTS
 import com.nexstay.myproperties.data.KeyHandover
 import com.nexstay.myproperties.data.Property
@@ -83,6 +85,7 @@ fun PropertyFormScreen(
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE) }
     val canSave = draft.name.isNotBlank()
 
+    Box {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -343,15 +346,12 @@ fun PropertyFormScreen(
     if (showMapPicker) {
         var pickedLatitude by remember { mutableStateOf(draft.latitude) }
         var pickedLongitude by remember { mutableStateOf(draft.longitude) }
-        Dialog(
-            onDismissRequest = { showMapPicker = false },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false
-            )
-        ) {
+        BackHandler { showMapPicker = false }
             Surface(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    // Avale les touchers pour que le formulaire en dessous soit inerte.
+                    .pointerInput(Unit) { detectTapGestures { } },
                 color = MaterialTheme.colorScheme.background
             ) {
                 Column(modifier = Modifier.systemBarsPadding()) {
