@@ -53,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardType
@@ -84,6 +85,31 @@ fun PropertyFormScreen(
     var showMapPicker by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE) }
     val canSave = draft.name.isNotBlank()
+
+    fun formatCoords(latitude: Double?, longitude: Double?): String =
+        if (latitude != null && longitude != null)
+            String.format(Locale.US, "%.5f, %.5f", latitude, longitude)
+        else ""
+
+    var coordsInput by remember(initial) {
+        mutableStateOf(formatCoords(initial?.latitude, initial?.longitude))
+    }
+    var coordsError by remember { mutableStateOf(false) }
+
+    /** Accepte « 36.87850, 10.32470 » (format Google Maps) et variantes. */
+    fun applyCoords() {
+        val numbers = Regex("[-+]?[0-9]+(?:\\.[0-9]+)?")
+            .findAll(coordsInput)
+            .map { it.value.toDouble() }
+            .toList()
+        if (numbers.size >= 2 && numbers[0] in -90.0..90.0 && numbers[1] in -180.0..180.0) {
+            draft = draft.copy(latitude = numbers[0], longitude = numbers[1])
+            coordsInput = formatCoords(numbers[0], numbers[1])
+            coordsError = false
+        } else {
+            coordsError = true
+        }
+    }
 
     Box {
     Scaffold(
@@ -149,9 +175,9 @@ fun PropertyFormScreen(
             SectionCard(title = "Localisation", icon = Icons.Outlined.Place) {
                 Text(
                     text = if (draft.latitude != null)
-                        "Position définie sur la carte ✓"
+                        "Position définie ✓  (${formatCoords(draft.latitude, draft.longitude)})"
                     else
-                        "Aucune position. Placez le logement sur la carte pour le voir avec les autres.",
+                        "Aucune position. Placez le logement sur la carte ou saisissez ses coordonnées GPS.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (draft.latitude != null) MaterialTheme.colorScheme.tertiary
                     else MaterialTheme.colorScheme.onSurfaceVariant
@@ -162,15 +188,41 @@ fun PropertyFormScreen(
                         shape = MaterialTheme.shapes.small,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(if (draft.latitude != null) "Modifier la position" else "Placer sur la carte")
+                        Text(if (draft.latitude != null) "Modifier sur la carte" else "Placer sur la carte")
                     }
                     if (draft.latitude != null) {
                         TextButton(onClick = {
                             draft = draft.copy(latitude = null, longitude = null)
+                            coordsInput = ""
+                            coordsError = false
                         }) {
                             Text("Retirer", color = MaterialTheme.colorScheme.error)
                         }
                     }
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AppTextField(
+                        coordsInput,
+                        {
+                            coordsInput = it
+                            coordsError = false
+                        },
+                        "Coordonnées GPS (lat, lon)",
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { applyCoords() }, enabled = coordsInput.isNotBlank()) {
+                        Text("Appliquer")
+                    }
+                }
+                if (coordsError) {
+                    Text(
+                        text = "Coordonnées invalides. Exemple : 36.87850, 10.32470",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
 
@@ -361,7 +413,10 @@ fun PropertyFormScreen(
                         modifier = Modifier.padding(start = 20.dp, top = 20.dp, end = 20.dp)
                     )
                     Text(
-                        text = "Touchez la carte pour positionner le logement 📍. Pincez pour zoomer.",
+                        text = if (pickedLatitude != null)
+                            "📍 ${formatCoords(pickedLatitude, pickedLongitude)} — touchez pour ajuster."
+                        else
+                            "Touchez la carte pour positionner le logement 📍. Pincez pour zoomer.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
@@ -396,6 +451,8 @@ fun PropertyFormScreen(
                                     latitude = pickedLatitude,
                                     longitude = pickedLongitude
                                 )
+                                coordsInput = formatCoords(pickedLatitude, pickedLongitude)
+                                coordsError = false
                                 showMapPicker = false
                             },
                             enabled = pickedLatitude != null,
