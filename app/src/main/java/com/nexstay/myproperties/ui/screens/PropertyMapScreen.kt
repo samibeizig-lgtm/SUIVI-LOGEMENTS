@@ -1,6 +1,7 @@
 package com.nexstay.myproperties.ui.screens
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,10 +21,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.nexstay.myproperties.data.Property
 import com.nexstay.myproperties.ui.map.MapMarker
+import com.nexstay.myproperties.ui.map.NexstayCoral
 import com.nexstay.myproperties.ui.map.TunisiaMap
+
+private val MapBackground = Color(0xFF121212)
+private val MapSurface = Color(0xFF1F1F1F)
+private val MapText = Color(0xFFF5F5F5)
+private val MapTextMuted = Color(0xFFB0B0B0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,17 +48,30 @@ fun PropertyMapScreen(
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = MapBackground,
         topBar = {
             TopAppBar(
-                title = { Text("Carte des logements") },
+                title = {
+                    Column {
+                        Text("Carte des logements", color = MapText)
+                        Text(
+                            text = "NEXSTAY",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = NexstayCoral
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Retour",
+                            tint = MapText
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = MapBackground
                 )
             )
         }
@@ -63,15 +84,14 @@ fun PropertyMapScreen(
             TunisiaMap(
                 markers = markers,
                 onMarkerOpen = onPropertyClick,
+                showcase = true,
                 modifier = Modifier.fillMaxSize()
             )
 
             if (properties.isEmpty() || located.size < properties.size) {
                 Card(
                     shape = MaterialTheme.shapes.medium,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = MapSurface),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
@@ -87,7 +107,7 @@ fun PropertyMapScreen(
                                 "${properties.size - located.size} logement(s) sans position. Modifiez-les pour les placer sur la carte."
                         },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MapTextMuted,
                         modifier = Modifier.padding(16.dp)
                     )
                 }

@@ -6,7 +6,7 @@ Application Android de suivi des logements gérés par **Nexstay**. Design minim
 
 - **Liste des logements** avec recherche (nom, adresse, propriétaire) et indicateur de contrat signé.
 - **Création / modification / suppression** d'un logement (suppression avec confirmation).
-- **Carte de Tunisie stylisée avec les gouvernorats**, dessinée par l'application elle-même — 100 % hors-ligne, aucune connexion ni clé API. Chaque logement y apparaît avec une émoticône 🏠 ; un appui affiche une bulle avec le nom de l'appartement, un second appui ouvre sa fiche. Zoom par pincement, noms des gouvernorats affichés selon le niveau de zoom.
+- **Carte vitrine façon affiche Nexstay** — fond sombre, seuls les gouvernorats contenant des logements sont dessinés, cadrage automatique sur la zone couverte, épingles corail avec le nom du logement affiché à côté ; un appui sur l'épingle ouvre une bulle, puis la fiche. 100 % hors-ligne, dessinée par l'application (aucune connexion ni clé API).
 - **Placement manuel** : la position du logement se définit en touchant la carte (rubrique Localisation du formulaire) — pas de géocodage approximatif. Une mini-carte de situation est intégrée à la fiche de chaque logement.
 - **Stockage local** (Room / SQLite) : les données restent sur le téléphone.
 

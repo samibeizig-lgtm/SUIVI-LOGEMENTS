@@ -21,6 +21,50 @@ class GeoBounds(
     val maxLat: Float
 )
 
+/** Test point-dans-polygone (lancer de rayon) sur les contours du gouvernorat. */
+fun Governorate.contains(latitude: Double, longitude: Double): Boolean {
+    rings.forEach { ring ->
+        var inside = false
+        val pointCount = ring.size / 2
+        var j = pointCount - 1
+        for (i in 0 until pointCount) {
+            val xi = ring[i * 2].toDouble()
+            val yi = ring[i * 2 + 1].toDouble()
+            val xj = ring[j * 2].toDouble()
+            val yj = ring[j * 2 + 1].toDouble()
+            if ((yi > latitude) != (yj > latitude) &&
+                longitude < (xj - xi) * (latitude - yi) / (yj - yi) + xi
+            ) {
+                inside = !inside
+            }
+            j = i
+        }
+        if (inside) return true
+    }
+    return false
+}
+
+/**
+ * Index du gouvernorat contenant le point ; à défaut (point placé en bord de
+ * contour simplifié), le gouvernorat au centroïde le plus proche.
+ */
+fun List<Governorate>.governorateIndexOf(latitude: Double, longitude: Double): Int {
+    val exact = indexOfFirst { it.contains(latitude, longitude) }
+    if (exact >= 0) return exact
+    var best = -1
+    var bestDistance = Double.MAX_VALUE
+    forEachIndexed { index, gov ->
+        val dLat = gov.centroidLat - latitude
+        val dLon = gov.centroidLon - longitude
+        val distance = dLat * dLat + dLon * dLon
+        if (distance < bestDistance) {
+            bestDistance = distance
+            best = index
+        }
+    }
+    return best
+}
+
 /** Charge les contours des gouvernorats depuis les assets (format compact généré depuis geoBoundaries). */
 object TunisiaGeo {
 

@@ -25,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -40,9 +42,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nexstay.myproperties.data.GeoBounds
 import com.nexstay.myproperties.data.TunisiaGeo
+import com.nexstay.myproperties.data.governorateIndexOf
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.roundToInt
+
+/** Corail Nexstay, utilisé par la carte vitrine et l'écran carte. */
+val NexstayCoral = Color(0xFFE8734A)
+
+private val ShowcaseBackground = Color(0xFF121212)
+private val ShowcaseLand = Color(0xFF2E2E2E)
+private val ShowcaseBorder = Color(0xFF5C5C5C)
+private val ShowcaseText = Color(0xFFF5F5F5)
 
 /** Marqueur affiché sur la carte. */
 data class MapMarker(
@@ -92,9 +103,14 @@ private class Projection(bounds: GeoBounds, width: Float, height: Float, private
 }
 
 /**
- * Carte stylisée de la Tunisie avec les gouvernorats, dessinée localement
- * (aucune connexion nécessaire). Supporte le zoom/déplacement, des marqueurs
- * 🏠 avec bulle du nom au toucher, et un mode placement (toucher = position).
+ * Carte de Tunisie dessinée localement (aucune connexion).
+ *
+ * Deux styles :
+ * - normal : tous les gouvernorats aux couleurs du thème, marqueurs 🏠 —
+ *   utilisé par la mini-carte de la fiche et le sélecteur de position ;
+ * - vitrine ([showcase]) : fond sombre façon affiche Nexstay, seuls les
+ *   gouvernorats contenant des logements sont dessinés, cadrage automatique
+ *   sur la zone couverte, épingles corail avec le nom affiché à côté.
  */
 @Composable
 fun TunisiaMap(
@@ -104,18 +120,32 @@ fun TunisiaMap(
     focus: MapFocus? = null,
     placementPosition: Pair<Double, Double>? = null,
     onPlace: ((Double, Double) -> Unit)? = null,
-    onMarkerOpen: ((Long) -> Unit)? = null
+    onMarkerOpen: ((Long) -> Unit)? = null,
+    showcase: Boolean = false
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val governorates = remember { TunisiaGeo.load(context) }
     val bounds = remember { TunisiaGeo.bounds(context) }
 
-    val landColor = MaterialTheme.colorScheme.surface
-    val borderColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.55f)
-    val outlineColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-    val seaColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f)
+    val occupiedIndices = remember(markers) {
+        markers.map { governorates.governorateIndexOf(it.latitude, it.longitude) }
+            .filter { it >= 0 }
+            .toSet()
+    }
+    val visibleIndices =
+        if (showcase && occupiedIndices.isNotEmpty()) occupiedIndices
+        else governorates.indices.toSet()
+
+    val landColor = if (showcase) ShowcaseLand else MaterialTheme.colorScheme.surface
+    val borderColor =
+        if (showcase) ShowcaseBorder else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.55f)
+    val seaColor =
+        if (showcase) ShowcaseBackground
+        else MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f)
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val bubbleColor = if (showcase) NexstayCoral else MaterialTheme.colorScheme.primary
+    val bubbleTextColor = if (showcase) ShowcaseText else MaterialTheme.colorScheme.onPrimary
 
     BoxWithConstraints(modifier = modifier.clipToBounds()) {
         val widthPx = constraints.maxWidth.toFloat()
@@ -142,20 +172,55 @@ fun TunisiaMap(
         fun screenOf(latitude: Double, longitude: Double): Offset =
             projection.world(latitude, longitude) * scale + offset
 
-        LaunchedEffect(projection) {
-            if (focus != null) {
-                scale = focus.zoom
-                val world = projection.world(focus.latitude, focus.longitude)
-                offset = Offset(
-                    widthPx / 2f - world.x * focus.zoom,
-                    heightPx / 2f - world.y * focus.zoom
-                )
-            } else {
-                scale = 1f
-                offset = Offset(
-                    (widthPx - projection.worldWidth) / 2f,
-                    (heightPx - projection.worldHeight) / 2f
-                )
+        LaunchedEffect(projection, focus, showcase, occupiedIndices) {
+            when {
+                focus != null -> {
+                    scale = focus.zoom
+                    val world = projection.world(focus.latitude, focus.longitude)
+                    offset = Offset(
+                        widthPx / 2f - world.x * focus.zoom,
+                        heightPx / 2f - world.y * focus.zoom
+                    )
+                }
+                showcase && occupiedIndices.isNotEmpty() -> {
+                    // Cadrage automatique sur les gouvernorats occupés.
+                    var minLat = Float.MAX_VALUE
+                    var maxLat = -Float.MAX_VALUE
+                    var minLon = Float.MAX_VALUE
+                    var maxLon = -Float.MAX_VALUE
+                    occupiedIndices.forEach { index ->
+                        governorates[index].rings.forEach { ring ->
+                            for (i in 0 until ring.size / 2) {
+                                val lon = ring[i * 2]
+                                val lat = ring[i * 2 + 1]
+                                if (lon < minLon) minLon = lon
+                                if (lon > maxLon) maxLon = lon
+                                if (lat < minLat) minLat = lat
+                                if (lat > maxLat) maxLat = lat
+                            }
+                        }
+                    }
+                    val topLeft = projection.world(maxLat.toDouble(), minLon.toDouble())
+                    val bottomRight = projection.world(minLat.toDouble(), maxLon.toDouble())
+                    val boxWidth = maxOf(bottomRight.x - topLeft.x, 1f)
+                    val boxHeight = maxOf(bottomRight.y - topLeft.y, 1f)
+                    val fitScale = min((widthPx * 0.7f) / boxWidth, (heightPx * 0.7f) / boxHeight)
+                        .coerceIn(1f, 12f)
+                    scale = fitScale
+                    val centerX = (topLeft.x + bottomRight.x) / 2f
+                    val centerY = (topLeft.y + bottomRight.y) / 2f
+                    offset = Offset(
+                        widthPx / 2f - centerX * fitScale,
+                        heightPx / 2f - centerY * fitScale
+                    )
+                }
+                else -> {
+                    scale = 1f
+                    offset = Offset(
+                        (widthPx - projection.worldWidth) / 2f,
+                        (heightPx - projection.worldHeight) / 2f
+                    )
+                }
             }
         }
 
@@ -193,6 +258,14 @@ fun TunisiaMap(
                 textSize = with(density) { 26.sp.toPx() }
             }
         }
+        val pinLabelPaint = remember {
+            android.graphics.Paint().apply {
+                isAntiAlias = true
+                color = ShowcaseText.toArgb()
+                textSize = with(density) { 12.sp.toPx() }
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+        }
         val labelMinHeightPx = with(density) { 60.dp.toPx() }
 
         var mapModifier: Modifier = Modifier.fillMaxSize()
@@ -208,7 +281,7 @@ fun TunisiaMap(
                 }
                 .pointerInput(markers, onPlace) {
                     detectTapGestures { tap ->
-                        val hitRadius = 26.dp.toPx()
+                        val hitRadius = 28.dp.toPx()
                         val hit = markers
                             .minByOrNull { (screenOf(it.latitude, it.longitude) - tap).getDistance() }
                             ?.takeIf {
@@ -234,39 +307,97 @@ fun TunisiaMap(
                 scale(scale, scale, pivot = Offset.Zero)
             }) {
                 val strokeWidth = 1.2.dp.toPx() / scale
-                paths.forEach { path ->
-                    drawPath(path, landColor)
-                    drawPath(path, borderColor, style = Stroke(width = strokeWidth))
+                paths.forEachIndexed { index, path ->
+                    if (index in visibleIndices) {
+                        drawPath(path, landColor)
+                        drawPath(path, borderColor, style = Stroke(width = strokeWidth))
+                    }
                 }
-                paths.forEach { path ->
-                    drawPath(
-                        path,
-                        outlineColor,
-                        style = Stroke(width = strokeWidth * 0.6f)
+            }
+
+            if (showcase) {
+                // Épingles corail façon affiche Nexstay.
+                val pinRadius = 8.dp.toPx()
+                markers.forEach { marker ->
+                    val tip = screenOf(marker.latitude, marker.longitude)
+                    val circleCenter = Offset(tip.x, tip.y - pinRadius * 1.8f)
+                    val pin = Path().apply {
+                        moveTo(tip.x, tip.y)
+                        arcTo(
+                            rect = Rect(
+                                circleCenter.x - pinRadius,
+                                circleCenter.y - pinRadius,
+                                circleCenter.x + pinRadius,
+                                circleCenter.y + pinRadius
+                            ),
+                            startAngleDegrees = 150f,
+                            sweepAngleDegrees = 240f,
+                            forceMoveTo = false
+                        )
+                        close()
+                    }
+                    drawPath(pin, NexstayCoral)
+                    drawCircle(
+                        color = ShowcaseBackground,
+                        radius = pinRadius * 0.4f,
+                        center = circleCenter
+                    )
+
+                    // Trait de rappel vers le nom, côté opposé au bord de l'écran.
+                    val toRight = tip.x < widthPx / 2f
+                    val lineStartX = if (toRight) tip.x + pinRadius + 4.dp.toPx()
+                    else tip.x - pinRadius - 4.dp.toPx()
+                    val lineEndX = if (toRight) lineStartX + 14.dp.toPx()
+                    else lineStartX - 14.dp.toPx()
+                    drawLine(
+                        color = NexstayCoral,
+                        start = Offset(lineStartX, circleCenter.y),
+                        end = Offset(lineEndX, circleCenter.y),
+                        strokeWidth = 1.5.dp.toPx()
                     )
                 }
             }
 
             drawIntoCanvas { canvas ->
-                governorates.forEach { gov ->
-                    val heightOnScreen =
-                        gov.latSpan * projection.pixelsPerDegreeLat * scale
-                    if (heightOnScreen > labelMinHeightPx) {
-                        val position = screenOf(
-                            gov.centroidLat.toDouble(),
-                            gov.centroidLon.toDouble()
-                        )
+                if (!showcase) {
+                    governorates.forEach { gov ->
+                        val heightOnScreen =
+                            gov.latSpan * projection.pixelsPerDegreeLat * scale
+                        if (heightOnScreen > labelMinHeightPx) {
+                            val position = screenOf(
+                                gov.centroidLat.toDouble(),
+                                gov.centroidLon.toDouble()
+                            )
+                            canvas.nativeCanvas.drawText(
+                                gov.name.uppercase(),
+                                position.x,
+                                position.y,
+                                labelPaint
+                            )
+                        }
+                    }
+                    markers.forEach { marker ->
+                        val position = screenOf(marker.latitude, marker.longitude)
+                        canvas.nativeCanvas.drawText("🏠", position.x, position.y, emojiPaint)
+                    }
+                } else {
+                    val pinRadius = with(density) { 8.dp.toPx() }
+                    val gap = with(density) { 22.dp.toPx() }
+                    markers.forEach { marker ->
+                        val tip = screenOf(marker.latitude, marker.longitude)
+                        val labelY = tip.y - pinRadius * 1.8f + pinLabelPaint.textSize * 0.35f
+                        val toRight = tip.x < widthPx / 2f
+                        pinLabelPaint.textAlign =
+                            if (toRight) android.graphics.Paint.Align.LEFT
+                            else android.graphics.Paint.Align.RIGHT
+                        val textX = if (toRight) tip.x + pinRadius + gap else tip.x - pinRadius - gap
                         canvas.nativeCanvas.drawText(
-                            gov.name.uppercase(),
-                            position.x,
-                            position.y,
-                            labelPaint
+                            marker.label.ifBlank { "Sans nom" },
+                            textX,
+                            labelY,
+                            pinLabelPaint
                         )
                     }
-                }
-                markers.forEach { marker ->
-                    val position = screenOf(marker.latitude, marker.longitude)
-                    canvas.nativeCanvas.drawText("🏠", position.x, position.y, emojiPaint)
                 }
                 placementPosition?.let { (latitude, longitude) ->
                     val position = screenOf(latitude, longitude)
@@ -283,7 +414,7 @@ fun TunisiaMap(
                     .offset {
                         IntOffset(
                             (position.x - with(density) { 120.dp.toPx() }).roundToInt(),
-                            (position.y - with(density) { 92.dp.toPx() }).roundToInt()
+                            (position.y - with(density) { 96.dp.toPx() }).roundToInt()
                         )
                     }
                     .width(240.dp)
@@ -293,8 +424,8 @@ fun TunisiaMap(
                 Surface(
                     onClick = { onMarkerOpen?.invoke(selected.id) },
                     shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    color = bubbleColor,
+                    contentColor = bubbleTextColor,
                     shadowElevation = 6.dp
                 ) {
                     Text(
