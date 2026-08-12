@@ -138,6 +138,7 @@ fun TunisiaMap(
     val governorates = remember { TunisiaGeo.load(context) }
     val bounds = remember { TunisiaGeo.bounds(context) }
     val communes = remember { TunisiaGeo.loadCommunes(context) }
+    val roads = remember { TunisiaGeo.loadRoads(context) }
     // Gouvernorat d'appartenance de chaque commune (via son centroïde).
     val communeGovernorate = remember {
         communes.map {
@@ -166,6 +167,10 @@ fun TunisiaMap(
         else MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
     val communeLabelColor =
         if (showcase) Color(0xFF9E9E9E) else MaterialTheme.colorScheme.onSurfaceVariant
+    val majorRoadColor =
+        if (showcase) Color(0xFF787878) else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.75f)
+    val minorRoadColor =
+        if (showcase) Color(0xFF5A5A5A) else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f)
     val bubbleColor = if (showcase) NexstayCoral else MaterialTheme.colorScheme.primary
     val bubbleTextColor = if (showcase) ShowcaseText else MaterialTheme.colorScheme.onPrimary
 
@@ -265,6 +270,29 @@ fun TunisiaMap(
         val paths = remember(projection) { buildPaths(governorates) }
         val communePaths = remember(projection) { buildPaths(communes) }
 
+        // Routes regroupées en deux tracés (autoroutes / routes principales),
+        // filtrées en mode vitrine sur les gouvernorats couverts.
+        val roadPaths = remember(projection, showcase, occupiedIndices) {
+            val major = Path()
+            val minor = Path()
+            roads.forEach { road ->
+                val visible = !showcase || occupiedIndices.isEmpty() ||
+                    road.governorateIndices.any { it in occupiedIndices }
+                if (visible) {
+                    val target = if (road.major) major else minor
+                    for (i in 0 until road.points.size / 2) {
+                        val point = projection.world(
+                            road.points[i * 2 + 1].toDouble(),
+                            road.points[i * 2].toDouble()
+                        )
+                        if (i == 0) target.moveTo(point.x, point.y)
+                        else target.lineTo(point.x, point.y)
+                    }
+                }
+            }
+            major to minor
+        }
+
         val labelPaint = remember(labelColor) {
             android.graphics.Paint().apply {
                 isAntiAlias = true
@@ -307,7 +335,7 @@ fun TunisiaMap(
             mapModifier = mapModifier
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, pan, zoom, _ ->
-                        val newScale = (scale * zoom).coerceIn(1f, 80f)
+                        val newScale = (scale * zoom).coerceIn(1f, 250f)
                         val zoomed = centroid - (centroid - offset) * (newScale / scale)
                         offset = clampOffset(zoomed + pan, newScale)
                         scale = newScale
@@ -362,6 +390,21 @@ fun TunisiaMap(
                             )
                         }
                     }
+                }
+                // Routes : autoroutes dès le zoom moyen, routes principales ensuite.
+                if (showcase || scale >= 2f) {
+                    drawPath(
+                        roadPaths.first,
+                        majorRoadColor,
+                        style = Stroke(width = 2.dp.toPx() / scale)
+                    )
+                }
+                if (showcase || scale >= 3.5f) {
+                    drawPath(
+                        roadPaths.second,
+                        minorRoadColor,
+                        style = Stroke(width = 1.2.dp.toPx() / scale)
+                    )
                 }
                 paths.forEachIndexed { index, path ->
                     if (index in visibleIndices) {

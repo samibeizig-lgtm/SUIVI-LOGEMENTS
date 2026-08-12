@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -25,6 +26,11 @@ class PropertyViewModel(application: Application) : AndroidViewModel(application
 
     val properties: StateFlow<List<Property>> = dao.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Photo/vidéo de couverture de chaque logement (première ajoutée), par id de logement. */
+    val covers: StateFlow<Map<Long, PropertyMedia>> = mediaDao.observeCovers()
+        .map { list -> list.associateBy { it.propertyId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     fun property(id: Long): Flow<Property?> = dao.observeById(id)
 

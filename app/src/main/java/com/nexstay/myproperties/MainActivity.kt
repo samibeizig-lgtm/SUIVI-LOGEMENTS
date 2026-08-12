@@ -47,8 +47,11 @@ fun MyPropertiesNavHost(viewModel: PropertyViewModel = viewModel()) {
     NavHost(navController = navController, startDestination = "list") {
 
         composable("list") {
+            val covers by viewModel.covers.collectAsState()
             PropertyListScreen(
                 properties = properties,
+                covers = covers,
+                mediaFileFor = { viewModel.mediaFile(it) },
                 onAddClick = { navController.navigate("form") },
                 onMapClick = { navController.navigate("map") },
                 onPropertyClick = { navController.navigate("detail/${it.id}") },

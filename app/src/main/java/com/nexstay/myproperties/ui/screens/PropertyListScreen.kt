@@ -3,6 +3,7 @@ package com.nexstay.myproperties.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,9 +50,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.nexstay.myproperties.data.Property
+import com.nexstay.myproperties.data.PropertyMedia
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,7 +67,9 @@ fun PropertyListScreen(
     onMapClick: () -> Unit,
     onPropertyClick: (Property) -> Unit,
     onExportBackup: (Uri) -> Unit,
-    onImportBackup: (Uri) -> Unit
+    onImportBackup: (Uri) -> Unit,
+    covers: Map<Long, PropertyMedia> = emptyMap(),
+    mediaFileFor: (PropertyMedia) -> File? = { null }
 ) {
     var query by remember { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
@@ -179,7 +187,11 @@ fun PropertyListScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(filtered, key = { it.id }) { property ->
-                        PropertyCard(property = property, onClick = { onPropertyClick(property) })
+                        PropertyCard(
+                            property = property,
+                            coverFile = covers[property.id]?.let(mediaFileFor),
+                            onClick = { onPropertyClick(property) }
+                        )
                     }
                 }
             }
@@ -210,14 +222,42 @@ fun PropertyListScreen(
 }
 
 @Composable
-private fun PropertyCard(property: Property, onClick: () -> Unit) {
+private fun PropertyCard(property: Property, coverFile: File?, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.tertiaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                if (coverFile != null) {
+                    AsyncImage(
+                        model = coverFile,
+                        contentDescription = "Photo de ${property.name}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Outlined.HomeWork,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+        Column(modifier = Modifier.weight(1f)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -277,6 +317,7 @@ private fun PropertyCard(property: Property, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
+        }
         }
     }
 }

@@ -65,6 +65,13 @@ fun List<Governorate>.governorateIndexOf(latitude: Double, longitude: Double): I
     return best
 }
 
+/** Tronçon routier : autoroute ([major]) ou route principale, avec les gouvernorats traversés. */
+class Road(
+    val major: Boolean,
+    val governorateIndices: IntArray,
+    val points: FloatArray
+)
+
 /** Charge les contours des gouvernorats et communes depuis les assets (format compact généré depuis geoBoundaries). */
 object TunisiaGeo {
 
@@ -73,6 +80,9 @@ object TunisiaGeo {
 
     @Volatile
     private var communesCache: List<Governorate>? = null
+
+    @Volatile
+    private var roadsCache: List<Road>? = null
 
     @Volatile
     private var cachedBounds: GeoBounds? = null
@@ -88,6 +98,33 @@ object TunisiaGeo {
         communesCache ?: synchronized(this) {
             communesCache ?: parse(context, "tunisia_communes.txt", updateBounds = false)
                 .also { communesCache = it }
+        }
+
+    /** Routes principales (source : Natural Earth), format "M|govIdx,…|lon,lat;…". */
+    fun loadRoads(context: Context): List<Road> =
+        roadsCache ?: synchronized(this) {
+            roadsCache ?: context.assets.open("tunisia_roads.txt")
+                .bufferedReader()
+                .readLines()
+                .filter { it.isNotBlank() }
+                .map { line ->
+                    val parts = line.split('|')
+                    val points = parts[2].split(';')
+                    val array = FloatArray(points.size * 2)
+                    points.forEachIndexed { i, point ->
+                        val comma = point.indexOf(',')
+                        array[i * 2] = point.substring(0, comma).toFloat()
+                        array[i * 2 + 1] = point.substring(comma + 1).toFloat()
+                    }
+                    Road(
+                        major = parts[0] == "M",
+                        governorateIndices = parts[1].split(',')
+                            .map { it.toInt() }
+                            .toIntArray(),
+                        points = array
+                    )
+                }
+                .also { roadsCache = it }
         }
 
     fun bounds(context: Context): GeoBounds {

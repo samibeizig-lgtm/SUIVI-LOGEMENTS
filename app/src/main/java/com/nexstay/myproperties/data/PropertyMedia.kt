@@ -28,6 +28,10 @@ interface MediaDao {
     @Query("SELECT * FROM property_media")
     suspend fun getAll(): List<PropertyMedia>
 
+    /** Premier média (couverture) de chaque logement. */
+    @Query("SELECT * FROM property_media WHERE id IN (SELECT MIN(id) FROM property_media GROUP BY propertyId)")
+    fun observeCovers(): Flow<List<PropertyMedia>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(media: PropertyMedia): Long
 
